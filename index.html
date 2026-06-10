@@ -819,16 +819,22 @@
         const slider = document.getElementById(`${field.id}-slider`);
         const number = document.getElementById(`${field.id}-num`);
         slider.addEventListener("input", () => {
-          setValue(field, Number(slider.value));
+          setValue(field, Number(slider.value), "slider");
         });
         number.addEventListener("input", () => {
-          setValue(field, number.value);
+          setValue(field, number.value, "number");
+        });
+        number.addEventListener("change", () => {
+          syncFieldControl(field, "commit");
         });
       }
 
       for (const field of assumptionFields) {
         const number = document.getElementById(`${field.id}-num`);
-        number.addEventListener("input", () => setValue(field, number.value));
+        number.addEventListener("input", () => setValue(field, number.value, "number"));
+        number.addEventListener("change", () => {
+          syncFieldControl(field, "commit");
+        });
       }
 
       document.getElementById("conditioning").addEventListener("change", (event) => {
@@ -850,8 +856,10 @@
       });
 
       document.querySelectorAll("[data-view]").forEach((button) => {
+        button.setAttribute("aria-selected", String(button.dataset.view === "assumptions"));
         button.addEventListener("click", () => {
           document.querySelectorAll("[data-view]").forEach((btn) => btn.classList.toggle("active", btn === button));
+          document.querySelectorAll("[data-view]").forEach((btn) => btn.setAttribute("aria-selected", String(btn === button)));
           document.getElementById("assumptionsView").hidden = button.dataset.view !== "assumptions";
           document.getElementById("rawView").hidden = button.dataset.view !== "raw";
         });
@@ -878,10 +886,11 @@
       });
     }
 
-    function setValue(field, rawValue) {
+    function setValue(field, rawValue, source) {
       const parsed = Number(rawValue);
       if (!Number.isFinite(parsed)) {
         state[field.id] = lastValid[field.id];
+        syncFieldControl(field, source);
         updateUI(false);
         return;
       }
@@ -891,7 +900,21 @@
         state[field.id] = 0;
         lastValid[field.id] = 0;
       }
+      syncFieldControl(field, source);
       updateUI(false);
+    }
+
+    function syncFieldControl(field, source) {
+      const value = state[field.id];
+      const slider = document.getElementById(`${field.id}-slider`);
+      const number = document.getElementById(`${field.id}-num`);
+      if (slider) {
+        slider.value = clamp(value, field.sliderMin, field.sliderMax);
+        slider.setAttribute("aria-valuetext", `${value} ${field.unit}`);
+      }
+      if (number && source !== "number") {
+        number.value = value;
+      }
     }
 
     function updateInputs() {
@@ -967,6 +990,7 @@
     function renderChart(result) {
       document.querySelectorAll("[data-mode]").forEach((button) => {
         button.classList.toggle("active", button.dataset.mode === sensitivityMode);
+        button.setAttribute("aria-selected", String(button.dataset.mode === sensitivityMode));
       });
 
       const wrap = document.getElementById("chartWrap");
