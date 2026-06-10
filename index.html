@@ -359,7 +359,21 @@
     }
 
     .chart-wrap {
+      position: relative;
       min-height: 280px;
+    }
+
+    .chart-readout {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart-readout strong {
+      color: var(--text);
     }
 
     svg {
@@ -465,6 +479,36 @@
       line-height: 1.5;
     }
 
+    .formula-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .formula-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #fff;
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .formula-card strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .formula-card code {
+      display: block;
+      white-space: normal;
+      color: #40514d;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
     .invalid {
       color: var(--danger);
       padding: 14px 20px 0;
@@ -504,7 +548,8 @@
 
       .stats,
       .assumption-grid,
-      .raw-grid {
+      .raw-grid,
+      .formula-grid {
         grid-template-columns: 1fr;
       }
 
@@ -643,7 +688,15 @@
                 <thead><tr><th>Input</th><th>Value</th></tr></thead>
                 <tbody id="rawInputs"></tbody>
               </table>
-              <div class="formula">LCOH = capex + fixed O&M + annualized stack replacement NPV + electricity + water. Stack replacements are scheduled by cumulative run-hours, discounted, re-annualized, then divided by annual H2 output.</div>
+            </div>
+            <div class="raw-card" style="margin-top: 12px;">
+              <h3>Component formulas and values</h3>
+              <table>
+                <thead><tr><th>Component</th><th>Value</th></tr></thead>
+                <tbody id="rawComponents"></tbody>
+              </table>
+              <div class="formula-grid" id="formulaDetails"></div>
+              <div class="formula" id="modelNotes"></div>
             </div>
           </div>
         </div>
@@ -689,6 +742,7 @@
     const lastValid = { ...state };
     let sensitivityMode = "power";
     let currency = "USD";
+    let hoverPoint = null;
 
     const fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
     const money = (value, digits = 2) => {
@@ -703,6 +757,9 @@
     const modelValue = (field, value) => field.money && currency === "EUR" ? value / state.eur : value;
     const displayUnit = (field) => field.money && currency === "EUR" ? field.eurUnit : field.unit;
     const moneyStep = (field) => field.money && currency === "EUR" ? field.step * state.eur : field.step;
+    const sweepUnit = () => sensitivityMode === "power" ? displayUnit(primaryFields[0]) : "%";
+    const sweepLabel = () => sensitivityMode === "power" ? "Power price" : "Capacity factor";
+    const formatAxisValue = (value) => sensitivityMode === "power" ? `${plain(value, 0)} ${sweepUnit()}` : `${plain(value, 0)}%`;
 
     function capitalRecoveryFactor(rate, life) {
       if (life <= 0) return NaN;
@@ -936,17 +993,32 @@
     function chartPoints() {
       const points = [];
       if (sensitivityMode === "power") {
-        for (let pw = 0; pw <= 150; pw += 3) {
+        for (let pw = 0; pw <= 150; pw += 1) {
           const next = { ...state, pw };
           points.push({ x: displayValue(primaryFields[0], pw), y: calculate(next).lcoh });
         }
       } else {
-        for (let cf = 10; cf <= 100; cf += 2) {
+        for (let cf = 10; cf <= 100; cf += 1) {
           const next = { ...state, cf };
           points.push({ x: cf, y: calculate(next).lcoh });
         }
       }
       return points.filter((point) => Number.isFinite(point.y));
+    }
+
+    function interpolateY(points, xValue) {
+      if (!points.length) return NaN;
+      if (xValue <= points[0].x) return points[0].y;
+      if (xValue >= points[points.length - 1].x) return points[points.length - 1].y;
+      for (let index = 1; index < points.length; index += 1) {
+        const right = points[index];
+        const left = points[index - 1];
+        if (xValue <= right.x) {
+          const ratio = (xValue - left.x) / (right.x - left.x);
+          return left.y + ratio * (right.y - left.y);
+        }
+      }
+      return points[points.length - 1].y;
     }
 
     function renderChart(result) {
@@ -975,12 +1047,19 @@
       const line = points.map((p) => `${xScale(p.x).toFixed(1)},${yScale(p.y).toFixed(1)}`).join(" ");
       const area = `${pad.left},${pad.top + innerH} ${line} ${pad.left + innerW},${pad.top + innerH}`;
       const currentX = sensitivityMode === "power" ? displayValue(primaryFields[0], state.pw) : state.cf;
+      const activeX = hoverPoint && hoverPoint.mode === sensitivityMode ? clamp(hoverPoint.x, xMin, xMax) : currentX;
+      const activeY = interpolateY(points, activeX);
       const markerX = xScale(clamp(currentX, xMin, xMax));
       const markerY = yScale(result.lcoh);
+      const hoverX = xScale(activeX);
+      const hoverY = yScale(activeY);
       const xLabel = sensitivityMode === "power" ? `Power price (${displayUnit(primaryFields[0])})` : "Capacity factor (%)";
       const chartTitle = `Sensitivity chart showing LCOH of ${money(result.lcoh)} per kg at current ${xLabel}.`;
       const yTicks = [0, yMax / 4, yMax / 2, (3 * yMax) / 4, yMax];
       const xTicks = sensitivityMode === "power" ? [0, 30, 60, 90, 120, 150].map((value) => displayValue(primaryFields[0], value)) : [10, 25, 40, 55, 70, 85, 100];
+      const readout = `${sweepLabel()} ${formatAxisValue(activeX)} gives ${money(activeY)}/kg-H2`;
+      const activeLabelX = clamp(hoverX - 78, pad.left, pad.left + innerW - 156);
+      const activeLabelY = Math.max(4, hoverY - 38);
 
       wrap.innerHTML = `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chartTitle">
@@ -993,13 +1072,44 @@
           <polygon points="${area}" fill="#0f766e" opacity="0.10"></polygon>
           <polyline points="${line}" fill="none" stroke="#0f766e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
           <line x1="${markerX}" x2="${markerX}" y1="${pad.top}" y2="${pad.top + innerH}" stroke="#17211f" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.55"></line>
-          <circle cx="${markerX}" cy="${markerY}" r="5.5" fill="#0f766e" stroke="#fff" stroke-width="3"></circle>
-          <g transform="translate(${clamp(markerX - 42, pad.left, pad.left + innerW - 84)} ${Math.max(4, markerY - 38)})">
-            <rect width="84" height="26" rx="6" fill="#17211f"></rect>
-            <text x="42" y="17" text-anchor="middle" font-size="12" font-weight="760" fill="#fff">${money(result.lcoh)}</text>
+          <circle cx="${markerX}" cy="${markerY}" r="4.5" fill="#17211f" stroke="#fff" stroke-width="2.5"></circle>
+          <line id="hoverLine" x1="${hoverX}" x2="${hoverX}" y1="${pad.top}" y2="${pad.top + innerH}" stroke="#0f766e" stroke-width="1.5" stroke-dasharray="4 5"></line>
+          <circle id="hoverDot" cx="${hoverX}" cy="${hoverY}" r="5.5" fill="#0f766e" stroke="#fff" stroke-width="3"></circle>
+          <g id="hoverLabel" transform="translate(${activeLabelX} ${activeLabelY})">
+            <rect width="156" height="26" rx="6" fill="#17211f"></rect>
+            <text x="78" y="17" text-anchor="middle" font-size="12" font-weight="760" fill="#fff">${money(activeY)} at ${formatAxisValue(activeX)}</text>
           </g>
+          <rect id="chartHotspot" x="${pad.left}" y="${pad.top}" width="${innerW}" height="${innerH}" fill="transparent" style="cursor: crosshair;"></rect>
         </svg>
+        <div class="chart-readout" id="chartReadout"><strong>${readout}</strong></div>
       `;
+      bindChartHover({ xMin, xMax, pad, innerW, points });
+    }
+
+    function bindChartHover(config) {
+      const hotspot = document.getElementById("chartHotspot");
+      const readout = document.getElementById("chartReadout");
+      if (!hotspot || !readout) return;
+
+      const updateFromClientX = (clientX) => {
+        const rect = hotspot.getBoundingClientRect();
+        const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+        const x = config.xMin + ratio * (config.xMax - config.xMin);
+        hoverPoint = { mode: sensitivityMode, x };
+        const y = interpolateY(config.points, x);
+        readout.innerHTML = `<strong>${sweepLabel()} ${formatAxisValue(x)} gives ${money(y)}/kg-H2</strong>`;
+        renderChart(calculate(state));
+      };
+
+      hotspot.addEventListener("pointermove", (event) => updateFromClientX(event.clientX));
+      hotspot.addEventListener("pointerdown", (event) => {
+        hotspot.setPointerCapture?.(event.pointerId);
+        updateFromClientX(event.clientX);
+      });
+      hotspot.addEventListener("pointerleave", () => {
+        hoverPoint = null;
+        renderChart(calculate(state));
+      });
     }
 
     function renderRaw(result) {
@@ -1028,10 +1138,51 @@
 
       const body = document.getElementById("rawReplacements");
       if (!result.replacements.length) {
-        body.innerHTML = `<tr><td>No replacements in plant life</td><td>$0.00</td></tr>`;
+        body.innerHTML = `<tr><td>No replacements in plant life</td><td>${money(0)}</td></tr>`;
       } else {
         body.innerHTML = result.replacements.map((item) => `<tr><td>Year ${plain(item.year, 2)}</td><td>${money(item.npv)}</td></tr>`).join("");
       }
+
+      const components = [
+        ["Electricity", `${money(result.components.electricity)}/kg-H2`],
+        ["Capex", `${money(result.components.capex)}/kg-H2`],
+        ["Stack replacement", `${money(result.components.replacement)}/kg-H2`],
+        ["Fixed O&M", `${money(result.components.om)}/kg-H2`],
+        ["Water", `${money(result.components.water)}/kg-H2`],
+        ["Total LCOH", `${money(result.lcoh)}/kg-H2`]
+      ];
+      document.getElementById("rawComponents").innerHTML = components.map(([name, value]) => `<tr><td>${name}</td><td>${value}</td></tr>`).join("");
+
+      const formulas = [
+        ["Annual run hours", "8760 x capacity factor"],
+        ["Annual H2 per kW", "annual run hours / specific energy"],
+        ["Total capex", "stack + balance of plant + compression capex + water purification capex"],
+        ["Capital recovery factor", "r x (1 + r)^n / ((1 + r)^n - 1). If r = 0, CRF = 1 / n."],
+        ["Annualized capex", "total capex x CRF"],
+        ["Fixed O&M", "total capex x fixed O&M percentage"],
+        ["Electricity cost", "(specific energy + compression energy) x power price / 1000"],
+        ["Water cost", "water use / 1000 x water cost"],
+        ["Years between stack replacements", "replacement interval hours / annual run hours"],
+        ["Replacement NPV", "sum of each replacement cost / (1 + discount rate)^replacement year"],
+        ["Annualized replacement", "replacement NPV x CRF"],
+        ["LCOH", "capex + fixed O&M + stack replacement + electricity + water"],
+        ["EUR display", "USD model value x EUR per USD. USD remains the internal base calculation."]
+      ];
+      document.getElementById("formulaDetails").innerHTML = formulas.map(([name, formula]) => `
+        <div class="formula-card">
+          <strong>${name}</strong>
+          <code>${formula}</code>
+        </div>
+      `).join("");
+      document.getElementById("modelNotes").innerHTML = `
+        <strong>Model notes:</strong>
+        All costs are expressed per kW of electrolyzer nameplate capacity and scale linearly with plant size.
+        Specific energy is system-level, so rectifier and balance-of-plant parasitic losses are included.
+        Compression energy is treated as additional electricity demand.
+        Fixed O&M is applied to total installed capex.
+        Stack replacement timing depends on cumulative operating hours, so higher capacity factor can add more replacement events within the same plant life.
+        The model does not include taxes, incentives, degradation, time-varying power prices, storage, transport, currency volatility, or scenario comparison.
+      `;
     }
 
     function encodeState() {
