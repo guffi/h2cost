@@ -704,7 +704,7 @@
     </div>
 
     <footer>
-      v1 scope: single scenario, constant power price, no efficiency degradation, no export workflow. Currency conversion is an editable display assumption; the model is intentionally transparent so every input is easy to audit.
+      v1 scope: single scenario, constant power price, no efficiency degradation, no export workflow. Currency selection changes labels and symbols only; the model is intentionally transparent so every input is easy to audit.
     </footer>
   </main>
 
@@ -726,8 +726,7 @@
       { id: "life", label: "Plant life", unit: "years", default: 20, min: 1, max: 80, step: 1, note: "Economic life for capital recovery." },
       { id: "om", label: "Fixed O&M", unit: "% capex/yr", default: 3, min: 0, max: 30, step: 0.1, note: "Applied to total installed capex." },
       { id: "ri", label: "Stack replacement interval", unit: "hours", default: 80000, min: 1, max: 200000, step: 1000, note: "Scheduled by cumulative run-hours." },
-      { id: "rc", label: "Stack replacement cost", unit: "% capex", default: 40, min: 0, max: 200, step: 1, note: "Percent of total installed capex." },
-      { id: "eur", label: "EUR per USD", unit: "EUR/USD", default: 0.92, min: 0.1, max: 2, step: 0.01, note: "Displayed EUR values use this explicit conversion rate." }
+      { id: "rc", label: "Stack replacement cost", unit: "% capex", default: 40, min: 0, max: 200, step: 1, note: "Percent of total installed capex." }
     ];
 
     const componentMeta = [
@@ -748,15 +747,14 @@
     const money = (value, digits = 2) => {
       if (!Number.isFinite(value)) return "–";
       const symbol = currency === "EUR" ? "€" : "$";
-      const display = currency === "EUR" ? value * state.eur : value;
-      return `${symbol}${display.toFixed(digits)}`;
+      return `${symbol}${value.toFixed(digits)}`;
     };
     const plain = (value, digits = 2) => Number.isFinite(value) ? value.toFixed(digits) : "–";
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-    const displayValue = (field, value) => field.money && currency === "EUR" ? value * state.eur : value;
-    const modelValue = (field, value) => field.money && currency === "EUR" ? value / state.eur : value;
+    const displayValue = (field, value) => value;
+    const modelValue = (field, value) => value;
     const displayUnit = (field) => field.money && currency === "EUR" ? field.eurUnit : field.unit;
-    const moneyStep = (field) => field.money && currency === "EUR" ? field.step * state.eur : field.step;
+    const moneyStep = (field) => field.step;
     const sweepUnit = () => sensitivityMode === "power" ? displayUnit(primaryFields[0]) : "%";
     const sweepLabel = () => sensitivityMode === "power" ? "Power price" : "Capacity factor";
     const formatAxisValue = (value) => sensitivityMode === "power" ? `${plain(value, 0)} ${sweepUnit()}` : `${plain(value, 0)}%`;
@@ -920,7 +918,7 @@
       state[field.id] = clamp(modelValue(field, parsed), field.min, field.max);
       lastValid[field.id] = state[field.id];
       syncFieldControl(field, source);
-      updateUI(field.id === "eur");
+      updateUI(false);
     }
 
     function syncFieldControl(field, source) {
@@ -1166,7 +1164,7 @@
         ["Replacement NPV", "sum of each replacement cost / (1 + discount rate)^replacement year"],
         ["Annualized replacement", "replacement NPV x CRF"],
         ["LCOH", "capex + fixed O&M + stack replacement + electricity + water"],
-        ["EUR display", "USD model value x EUR per USD. USD remains the internal base calculation."]
+        ["Currency display", "Currency selection changes the visible symbol and monetary units only. It does not convert numeric values."]
       ];
       document.getElementById("formulaDetails").innerHTML = formulas.map(([name, formula]) => `
         <div class="formula-card">
