@@ -70,6 +70,14 @@
       gap: 8px;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     h1,
     h2,
     h3,
@@ -187,12 +195,6 @@
       letter-spacing: 0;
     }
 
-    .presets {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
     .chip,
     .segmented button {
       border: 1px solid var(--border-strong);
@@ -275,34 +277,10 @@
       outline-offset: 2px;
     }
 
-    input.locked {
-      color: var(--muted);
-      background: #eef3f1;
-    }
-
     .suffix {
       color: var(--muted);
       font-size: 13px;
       white-space: nowrap;
-    }
-
-    .conditioning {
-      margin-top: 4px;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--panel-soft);
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .conditioning input {
-      margin-top: 2px;
-      accent-color: var(--accent);
     }
 
     .breakdown {
@@ -574,7 +552,13 @@
         <h1>H2 Cost</h1>
         <p class="lede">A client-side levelized cost of hydrogen calculator for electrolysis projects. Adjust plant economics and see the cost stack move in real time.</p>
       </div>
-      <button class="share" id="copyLink" type="button">Copy scenario link</button>
+      <div class="header-actions">
+        <div class="segmented" role="tablist" aria-label="Currency">
+          <button type="button" class="active" data-currency="USD">USD</button>
+          <button type="button" data-currency="EUR">EUR</button>
+        </div>
+        <button class="share" id="copyLink" type="button">Copy scenario link</button>
+      </div>
     </header>
 
     <section class="panel summary" aria-live="polite">
@@ -598,12 +582,6 @@
       <section class="panel">
         <div class="section-head">
           <h2>Primary inputs</h2>
-          <div class="presets" aria-label="Preset scenarios">
-            <button class="chip" type="button" data-preset="default">Chinese alkaline</button>
-            <button class="chip" type="button" data-preset="cheap">Cheap power</button>
-            <button class="chip" type="button" data-preset="pem">Western PEM</button>
-            <button class="chip" type="button" data-preset="pilot">FOAK pilot</button>
-          </div>
         </div>
         <div class="invalid" id="invalidNotice">Capacity factor is too low to produce hydrogen. Outputs are unavailable.</div>
         <div class="inputs" id="primaryInputs"></div>
@@ -673,29 +651,30 @@
     </div>
 
     <footer>
-      v1 scope: single scenario, constant power price, no efficiency degradation, USD only, no export workflow. The model is intentionally transparent so the assumptions are easy to audit.
+      v1 scope: single scenario, constant power price, no efficiency degradation, no export workflow. Currency conversion is an editable display assumption; the model is intentionally transparent so every input is easy to audit.
     </footer>
   </main>
 
   <script>
     const primaryFields = [
-      { id: "pw", label: "Power price", unit: "$/MWh", default: 40, sliderMin: 0, sliderMax: 150, min: 0, max: 500, step: 1 },
+      { id: "pw", label: "Power price", unit: "$/MWh", eurUnit: "€/MWh", default: 40, sliderMin: 0, sliderMax: 150, min: 0, max: 500, step: 1, money: true },
       { id: "cf", label: "Capacity factor", unit: "%", default: 50, sliderMin: 5, sliderMax: 100, min: 1, max: 100, step: 1 },
-      { id: "cap", label: "Stack + balance of plant", unit: "$/kW", default: 500, sliderMin: 200, sliderMax: 3000, min: 0, max: 10000, step: 10 },
-      { id: "cc", label: "Compression capex", unit: "$/kW", default: 40, sliderMin: 0, sliderMax: 500, min: 0, max: 2000, step: 5 },
-      { id: "wc", label: "Water purification capex", unit: "$/kW", default: 25, sliderMin: 0, sliderMax: 300, min: 0, max: 1000, step: 5 }
+      { id: "cap", label: "Stack + balance of plant", unit: "$/kW", eurUnit: "€/kW", default: 500, sliderMin: 200, sliderMax: 3000, min: 0, max: 10000, step: 10, money: true },
+      { id: "cc", label: "Compression capex", unit: "$/kW", eurUnit: "€/kW", default: 40, sliderMin: 0, sliderMax: 500, min: 0, max: 2000, step: 5, money: true },
+      { id: "wc", label: "Water purification capex", unit: "$/kW", eurUnit: "€/kW", default: 25, sliderMin: 0, sliderMax: 300, min: 0, max: 1000, step: 5, money: true }
     ];
 
     const assumptionFields = [
       { id: "sec", label: "Specific energy", unit: "kWh/kg", default: 52, min: 1, max: 100, step: 0.1, note: "System-level: includes rectifier and balance-of-plant losses." },
       { id: "ce", label: "Compression energy", unit: "kWh/kg", default: 2, min: 0, max: 50, step: 0.1, note: "Additional load for delivery compression." },
       { id: "wl", label: "Water use", unit: "L/kg", default: 10, min: 0, max: 100, step: 0.1, note: "Water consumed per kg of hydrogen." },
-      { id: "wp", label: "Water cost", unit: "$/m3", default: 2, min: 0, max: 100, step: 0.1, note: "Delivered water price." },
+      { id: "wp", label: "Water cost", unit: "$/m3", eurUnit: "€/m3", default: 2, min: 0, max: 100, step: 0.1, note: "Delivered water price.", money: true },
       { id: "dr", label: "Discount rate", unit: "%", default: 8, min: 0, max: 50, step: 0.1, note: "Used for CRF and replacement NPV." },
       { id: "life", label: "Plant life", unit: "years", default: 20, min: 1, max: 80, step: 1, note: "Economic life for capital recovery." },
       { id: "om", label: "Fixed O&M", unit: "% capex/yr", default: 3, min: 0, max: 30, step: 0.1, note: "Applied to total installed capex." },
       { id: "ri", label: "Stack replacement interval", unit: "hours", default: 80000, min: 1, max: 200000, step: 1000, note: "Scheduled by cumulative run-hours." },
-      { id: "rc", label: "Stack replacement cost", unit: "% capex", default: 40, min: 0, max: 200, step: 1, note: "Percent of total installed capex." }
+      { id: "rc", label: "Stack replacement cost", unit: "% capex", default: 40, min: 0, max: 200, step: 1, note: "Percent of total installed capex." },
+      { id: "eur", label: "EUR per USD", unit: "EUR/USD", default: 0.92, min: 0.1, max: 2, step: 0.01, note: "Displayed EUR values use this explicit conversion rate." }
     ];
 
     const componentMeta = [
@@ -706,22 +685,24 @@
       { key: "water", label: "Water", color: "var(--water)" }
     ];
 
-    const presets = {
-      default: { pw: 40, cf: 50, cap: 500, cc: 40, wc: 25, sec: 52, ce: 2, wl: 10, wp: 2, dr: 8, life: 20, om: 3, ri: 80000, rc: 40 },
-      cheap: { pw: 25, cf: 70, cap: 450, cc: 35, wc: 20, sec: 52, ce: 2, wl: 10, wp: 2, dr: 8, life: 20, om: 3, ri: 80000, rc: 35 },
-      pem: { pw: 65, cf: 45, cap: 1350, cc: 80, wc: 35, sec: 55, ce: 2, wl: 10, wp: 3, dr: 9, life: 20, om: 4, ri: 65000, rc: 45 },
-      pilot: { pw: 85, cf: 30, cap: 2600, cc: 140, wc: 80, sec: 58, ce: 3, wl: 12, wp: 4, dr: 12, life: 15, om: 5, ri: 50000, rc: 55 }
-    };
-
     const state = Object.fromEntries([...primaryFields, ...assumptionFields].map((field) => [field.id, field.default]));
     const lastValid = { ...state };
     let sensitivityMode = "power";
-    let conditioningIncluded = false;
+    let currency = "USD";
 
     const fmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
-    const money = (value, digits = 2) => Number.isFinite(value) ? `$${value.toFixed(digits)}` : "–";
+    const money = (value, digits = 2) => {
+      if (!Number.isFinite(value)) return "–";
+      const symbol = currency === "EUR" ? "€" : "$";
+      const display = currency === "EUR" ? value * state.eur : value;
+      return `${symbol}${display.toFixed(digits)}`;
+    };
     const plain = (value, digits = 2) => Number.isFinite(value) ? value.toFixed(digits) : "–";
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const displayValue = (field, value) => field.money && currency === "EUR" ? value * state.eur : value;
+    const modelValue = (field, value) => field.money && currency === "EUR" ? value / state.eur : value;
+    const displayUnit = (field) => field.money && currency === "EUR" ? field.eurUnit : field.unit;
+    const moneyStep = (field) => field.money && currency === "EUR" ? field.step * state.eur : field.step;
 
     function capitalRecoveryFactor(rate, life) {
       if (life <= 0) return NaN;
@@ -784,24 +765,26 @@
 
     function makePrimaryInput(field) {
       const row = document.createElement("div");
+      const value = displayValue(field, state[field.id]);
       row.className = "slider-row";
       row.innerHTML = `
         <label for="${field.id}-num">${field.label}</label>
-        <input id="${field.id}-slider" type="range" min="${field.sliderMin}" max="${field.sliderMax}" step="${field.step}" value="${state[field.id]}" aria-valuetext="${state[field.id]} ${field.unit}">
-        <input id="${field.id}-num" type="number" min="${field.min}" max="${field.max}" step="${field.step}" value="${state[field.id]}">
-        <span class="suffix">${field.unit}</span>
+        <input id="${field.id}-slider" type="range" min="${displayValue(field, field.sliderMin)}" max="${displayValue(field, field.sliderMax)}" step="${moneyStep(field)}" value="${value}" aria-valuetext="${value} ${displayUnit(field)}">
+        <input id="${field.id}-num" type="number" min="${displayValue(field, field.min)}" max="${displayValue(field, field.max)}" step="${moneyStep(field)}" value="${value}">
+        <span class="suffix" id="${field.id}-unit">${displayUnit(field)}</span>
       `;
       return row;
     }
 
     function makeAssumptionInput(field) {
       const wrap = document.createElement("div");
+      const value = displayValue(field, state[field.id]);
       wrap.className = "field";
       wrap.innerHTML = `
         <label for="${field.id}-num">${field.label}<span class="hint">${field.note}</span></label>
         <div class="field-control">
-          <input id="${field.id}-num" type="number" min="${field.min}" max="${field.max}" step="${field.step}" value="${state[field.id]}">
-          <span class="suffix">${field.unit}</span>
+          <input id="${field.id}-num" type="number" min="${displayValue(field, field.min)}" max="${displayValue(field, field.max)}" step="${moneyStep(field)}" value="${value}">
+          <span class="suffix" id="${field.id}-unit">${displayUnit(field)}</span>
         </div>
       `;
       return wrap;
@@ -809,10 +792,6 @@
 
     function bindInputs() {
       document.getElementById("primaryInputs").append(...primaryFields.map(makePrimaryInput));
-      const conditioning = document.createElement("label");
-      conditioning.className = "conditioning";
-      conditioning.innerHTML = `<input id="conditioning" type="checkbox"> <span><strong>System quote includes conditioning.</strong> Lock compression and water purification capex to zero to avoid double-counting turnkey quotes.</span>`;
-      document.getElementById("primaryInputs").append(conditioning);
       document.getElementById("assumptionInputs").append(...assumptionFields.map(makeAssumptionInput));
 
       for (const field of primaryFields) {
@@ -837,15 +816,11 @@
         });
       }
 
-      document.getElementById("conditioning").addEventListener("change", (event) => {
-        conditioningIncluded = event.target.checked;
-        if (conditioningIncluded) {
-          state.cc = 0;
-          state.wc = 0;
-          lastValid.cc = 0;
-          lastValid.wc = 0;
-        }
-        updateUI(true);
+      document.querySelectorAll("[data-currency]").forEach((button) => {
+        button.addEventListener("click", () => {
+          currency = button.dataset.currency;
+          updateUI(true);
+        });
       });
 
       document.querySelectorAll("[data-mode]").forEach((button) => {
@@ -862,15 +837,6 @@
           document.querySelectorAll("[data-view]").forEach((btn) => btn.setAttribute("aria-selected", String(btn === button)));
           document.getElementById("assumptionsView").hidden = button.dataset.view !== "assumptions";
           document.getElementById("rawView").hidden = button.dataset.view !== "raw";
-        });
-      });
-
-      document.querySelectorAll("[data-preset]").forEach((button) => {
-        button.addEventListener("click", () => {
-          Object.assign(state, presets[button.dataset.preset]);
-          Object.assign(lastValid, state);
-          conditioningIncluded = false;
-          updateUI(true);
         });
       });
 
@@ -894,51 +860,47 @@
         updateUI(false);
         return;
       }
-      state[field.id] = clamp(parsed, field.min, field.max);
+      state[field.id] = clamp(modelValue(field, parsed), field.min, field.max);
       lastValid[field.id] = state[field.id];
-      if (conditioningIncluded && (field.id === "cc" || field.id === "wc")) {
-        state[field.id] = 0;
-        lastValid[field.id] = 0;
-      }
       syncFieldControl(field, source);
-      updateUI(false);
+      updateUI(field.id === "eur");
     }
 
     function syncFieldControl(field, source) {
-      const value = state[field.id];
+      const value = displayValue(field, state[field.id]);
       const slider = document.getElementById(`${field.id}-slider`);
       const number = document.getElementById(`${field.id}-num`);
       if (slider) {
-        slider.value = clamp(value, field.sliderMin, field.sliderMax);
-        slider.setAttribute("aria-valuetext", `${value} ${field.unit}`);
+        slider.min = displayValue(field, field.sliderMin);
+        slider.max = displayValue(field, field.sliderMax);
+        slider.step = moneyStep(field);
+        slider.value = clamp(value, displayValue(field, field.sliderMin), displayValue(field, field.sliderMax));
+        slider.setAttribute("aria-valuetext", `${value} ${displayUnit(field)}`);
+      }
+      if (number) {
+        number.min = displayValue(field, field.min);
+        number.max = displayValue(field, field.max);
+        number.step = moneyStep(field);
       }
       if (number && source !== "number") {
-        number.value = value;
+        number.value = Number.isInteger(value) ? value : Number(value.toFixed(2));
       }
+      const unit = document.getElementById(`${field.id}-unit`);
+      if (unit) unit.textContent = displayUnit(field);
     }
 
     function updateInputs() {
       for (const field of primaryFields) {
-        const slider = document.getElementById(`${field.id}-slider`);
-        const number = document.getElementById(`${field.id}-num`);
-        const value = state[field.id];
-        const locked = conditioningIncluded && (field.id === "cc" || field.id === "wc");
-        slider.value = clamp(value, field.sliderMin, field.sliderMax);
-        slider.setAttribute("aria-valuetext", `${value} ${field.unit}`);
-        slider.disabled = locked;
-        number.value = value;
-        number.disabled = locked;
-        number.classList.toggle("locked", locked);
+        syncFieldControl(field, "refresh");
       }
       for (const field of assumptionFields) {
-        document.getElementById(`${field.id}-num`).value = state[field.id];
+        syncFieldControl(field, "refresh");
       }
-      document.getElementById("conditioning").checked = conditioningIncluded;
     }
 
     function renderSummary(result) {
       document.getElementById("invalidNotice").classList.toggle("show", !result.valid);
-      document.getElementById("lcohValue").textContent = result.valid ? money(result.lcoh) : "$–";
+      document.getElementById("lcohValue").textContent = result.valid ? money(result.lcoh) : `${currency === "EUR" ? "€" : "$"}–`;
       document.getElementById("annualH2").textContent = result.valid ? fmt.format(result.annualH2) : "–";
       document.getElementById("runHours").textContent = result.valid ? fmt.format(result.annualHours) : "–";
     }
@@ -976,7 +938,7 @@
       if (sensitivityMode === "power") {
         for (let pw = 0; pw <= 150; pw += 3) {
           const next = { ...state, pw };
-          points.push({ x: pw, y: calculate(next).lcoh });
+          points.push({ x: displayValue(primaryFields[0], pw), y: calculate(next).lcoh });
         }
       } else {
         for (let cf = 10; cf <= 100; cf += 2) {
@@ -1005,29 +967,29 @@
       const innerW = width - pad.left - pad.right;
       const innerH = height - pad.top - pad.bottom;
       const points = chartPoints();
-      const xMin = sensitivityMode === "power" ? 0 : 10;
-      const xMax = sensitivityMode === "power" ? 150 : 100;
+      const xMin = sensitivityMode === "power" ? displayValue(primaryFields[0], 0) : 10;
+      const xMax = sensitivityMode === "power" ? displayValue(primaryFields[0], 150) : 100;
       const yMax = Math.max(1, Math.ceil(Math.max(...points.map((p) => p.y), result.lcoh) * 1.16));
       const xScale = (x) => pad.left + ((x - xMin) / (xMax - xMin)) * innerW;
       const yScale = (y) => pad.top + innerH - (y / yMax) * innerH;
       const line = points.map((p) => `${xScale(p.x).toFixed(1)},${yScale(p.y).toFixed(1)}`).join(" ");
       const area = `${pad.left},${pad.top + innerH} ${line} ${pad.left + innerW},${pad.top + innerH}`;
-      const currentX = sensitivityMode === "power" ? state.pw : state.cf;
+      const currentX = sensitivityMode === "power" ? displayValue(primaryFields[0], state.pw) : state.cf;
       const markerX = xScale(clamp(currentX, xMin, xMax));
       const markerY = yScale(result.lcoh);
-      const xLabel = sensitivityMode === "power" ? "Power price ($/MWh)" : "Capacity factor (%)";
+      const xLabel = sensitivityMode === "power" ? `Power price (${displayUnit(primaryFields[0])})` : "Capacity factor (%)";
       const chartTitle = `Sensitivity chart showing LCOH of ${money(result.lcoh)} per kg at current ${xLabel}.`;
       const yTicks = [0, yMax / 4, yMax / 2, (3 * yMax) / 4, yMax];
-      const xTicks = sensitivityMode === "power" ? [0, 30, 60, 90, 120, 150] : [10, 25, 40, 55, 70, 85, 100];
+      const xTicks = sensitivityMode === "power" ? [0, 30, 60, 90, 120, 150].map((value) => displayValue(primaryFields[0], value)) : [10, 25, 40, 55, 70, 85, 100];
 
       wrap.innerHTML = `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="chartTitle">
           <title id="chartTitle">${chartTitle}</title>
           <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
-          ${yTicks.map((tick) => `<line x1="${pad.left}" x2="${pad.left + innerW}" y1="${yScale(tick)}" y2="${yScale(tick)}" stroke="#e5ebe8"></line><text x="${pad.left - 10}" y="${yScale(tick) + 4}" text-anchor="end" font-size="12" fill="#66736f">$${tick.toFixed(0)}</text>`).join("")}
-          ${xTicks.map((tick) => `<text x="${xScale(tick)}" y="${height - 15}" text-anchor="middle" font-size="12" fill="#66736f">${tick}</text>`).join("")}
+          ${yTicks.map((tick) => `<line x1="${pad.left}" x2="${pad.left + innerW}" y1="${yScale(tick)}" y2="${yScale(tick)}" stroke="#e5ebe8"></line><text x="${pad.left - 10}" y="${yScale(tick) + 4}" text-anchor="end" font-size="12" fill="#66736f">${money(tick, 0)}</text>`).join("")}
+          ${xTicks.map((tick) => `<text x="${xScale(tick)}" y="${height - 15}" text-anchor="middle" font-size="12" fill="#66736f">${tick.toFixed(0)}</text>`).join("")}
           <text x="${pad.left + innerW / 2}" y="${height - 1}" text-anchor="middle" font-size="12" font-weight="700" fill="#66736f">${xLabel}</text>
-          <text transform="translate(14 ${pad.top + innerH / 2}) rotate(-90)" text-anchor="middle" font-size="12" font-weight="700" fill="#66736f">LCOH ($/kg)</text>
+          <text transform="translate(14 ${pad.top + innerH / 2}) rotate(-90)" text-anchor="middle" font-size="12" font-weight="700" fill="#66736f">LCOH (${currency === "EUR" ? "€/kg" : "$/kg"})</text>
           <polygon points="${area}" fill="#0f766e" opacity="0.10"></polygon>
           <polyline points="${line}" fill="none" stroke="#0f766e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
           <line x1="${markerX}" x2="${markerX}" y1="${pad.top}" y2="${pad.top + innerH}" stroke="#17211f" stroke-width="1.5" stroke-dasharray="5 6" opacity="0.55"></line>
@@ -1044,7 +1006,9 @@
       const rawInputs = document.getElementById("rawInputs");
       rawInputs.innerHTML = "";
       for (const field of [...primaryFields, ...assumptionFields]) {
-        rawInputs.insertAdjacentHTML("beforeend", `<tr><td>${field.label}</td><td>${fmt.format(state[field.id])} ${field.unit}</td></tr>`);
+        const value = displayValue(field, state[field.id]);
+        const formatted = Math.abs(value) >= 1000 ? fmt.format(value) : plain(value, field.step < 1 ? 2 : 1);
+        rawInputs.insertAdjacentHTML("beforeend", `<tr><td>${field.label}</td><td>${formatted} ${displayUnit(field)}</td></tr>`);
       }
 
       const metrics = [
@@ -1073,7 +1037,7 @@
     function encodeState() {
       const params = new URLSearchParams();
       for (const key of Object.keys(state)) params.set(key, state[key]);
-      if (conditioningIncluded) params.set("conditioning", "1");
+      params.set("currency", currency);
       return params.toString();
     }
 
@@ -1093,25 +1057,21 @@
           }
         }
       }
-      conditioningIncluded = params.get("conditioning") === "1";
-      if (conditioningIncluded) {
-        state.cc = 0;
-        state.wc = 0;
-      }
+      currency = params.get("currency") === "EUR" ? "EUR" : "USD";
     }
 
-    function updatePresetState() {
-      document.querySelectorAll("[data-preset]").forEach((button) => {
-        const preset = presets[button.dataset.preset];
-        const matches = Object.keys(preset).every((key) => Number(state[key]) === Number(preset[key]));
-        button.classList.toggle("active", matches && !conditioningIncluded);
+    function updateCurrencyState() {
+      document.querySelectorAll("[data-currency]").forEach((button) => {
+        const active = button.dataset.currency === currency;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
       });
     }
 
     function updateUI(syncInputs) {
       if (syncInputs) updateInputs();
       updateHash();
-      updatePresetState();
+      updateCurrencyState();
       const result = calculate(state);
       renderSummary(result);
       renderStack(result);
