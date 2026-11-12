@@ -718,7 +718,7 @@
     ];
 
     const assumptionFields = [
-      { id: "sec", label: "Specific energy", unit: "kWh/kg", default: 52, min: 1, max: 100, step: 0.1, note: "System-level: includes rectifier and balance-of-plant losses." },
+      { id: "sec", label: "Specific energy", unit: "kWh/kg", default: 60, min: 1, max: 100, step: 0.1, note: "System-level: includes rectifier and balance-of-plant losses." },
       { id: "ce", label: "Compression energy", unit: "kWh/kg", default: 2, min: 0, max: 50, step: 0.1, note: "Additional load for delivery compression." },
       { id: "wl", label: "Water use", unit: "L/kg", default: 10, min: 0, max: 100, step: 0.1, note: "Water consumed per kg of hydrogen." },
       { id: "wp", label: "Water cost", unit: "$/m3", eurUnit: "€/m3", default: 2, min: 0, max: 100, step: 0.1, note: "Delivered water price.", money: true },
